@@ -1,6 +1,6 @@
 import argparse
 import os
-from flask import Flask, jsonify, request, render_template, make_response
+from flask import Flask, jsonify, request, render_template, make_response, send_from_directory
 import numpy as np
 from datetime import datetime, date
 import pprint
@@ -11,6 +11,11 @@ from routes import request_api
 
 
 app = Flask(__name__)
+CORS(app)
+
+@app.route('/static/<path:path>', methods=["GET"])
+def send_static(path):
+    return send_from_directory('static', path)
 
 ### swagger specific ###
 SWAGGER_URL = '/swagger'
@@ -27,7 +32,6 @@ app.register_blueprint(SWAGGERUI_BLUEPRINT, url_prefix=SWAGGER_URL)
 
 
 app.register_blueprint(request_api.get_blueprint())
-
 
 
 class Document():
@@ -67,11 +71,12 @@ def upload():
         return jsonify(dico)
         #return json.dumps(dico, ensure_ascii=False).encode('utf8')
 
+
 @app.route('/', methods=["GET"])
 def index():
     return "<h1>Welcome to our server !!</h1>"
 
-
+#curl -X GET http://127.0.0.1:5000/
 
 
 if __name__ == '__main__':
