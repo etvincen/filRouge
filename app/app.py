@@ -1,5 +1,7 @@
 from flask import Flask, jsonify, request, render_template
 import os
+import json
+import pprint
 import wand
 from wand.image import Image
 from wand.color import Color
@@ -17,34 +19,53 @@ from io import StringIO
 import csv
 
 app = Flask(__name__)
+app.config['JSON_AS_ASCII'] = False
+
+
+class Error(Exception):
+    pass;
+
+class ERROR_EXTENSION(Error):
+    #resp = jsonify({'message' : 'Le fichier json "{}" est introuvable'.format(name)})
+    #resp.status_code = 400
+    pass;
+    #return resp
 
 class Document():
     """
+    curl -F file=@./totti.txt http://0.0.0.0:24222/json
     curl -X post file=@./rest.txt http://127.0.0.1:5000/json
     """
-    endpoint = ''
+    doc_name = ''
+    output_path = ""
     extension = ''
     file = b''
     metadata = {}
     content = []
     
-    def __init__(self, file, endpoint):
-        self.endpoint = endpoint
+    def __init__(self, file, doc_name):
+        self.doc_name = doc_name
         self.extension = self.get_extension()
         self.content = []
+        self.output_path = "output_dir/" 
         self.file = file
         self.metadata = {}
         
     def writeToLocal(self):
-        path = os.path.join(os.getcwd(), self.endpoint)
+        path = os.path.join(os.path.join(os.getcwd(), self.output_path), self.doc_name)
         opt = ''
         if self.extension in ['csv', 'pdf']:
             opt='wb'
         elif self.extension in ['txt']:
             opt='w'
         else:
-            opt='ragnagna'
-        with open(path,opt) as fo:
+            try:
+                opt = self.extension
+                with open(path, opt) as fo:
+                    fo.write(self.content)
+            except ERROR_EXTENSION:
+                print("Erreur extension non supporté pour l'écriture du fichier en local")
+        with open(path, opt) as fo:
             fo.write(self.content)
         return path
         
@@ -64,7 +85,7 @@ class Document():
         return self.metadata
     
     def get_extension(self):
-        self.extension = self.endpoint.split('/')[-1].split('.')[-1].lower()
+        self.extension = self.doc_name.split('/')[-1].split('.')[-1].lower()
         return self.extension
     
     def refersTo(self):
@@ -76,6 +97,9 @@ class Document():
             return self.extract_textFile()
         elif self.extension in ['csv', 'xlsx']:
             return self.extract_csv()
+        else:
+            print("Unknown extension")
+            return self.writeToLocal()
         
     def extract_images(self):
         self.metadata = {}
@@ -90,6 +114,7 @@ class Document():
             #self.metadata["background_color"] = i.background_color 
             self.metadata["compression_quality"] = i.compression_quality
             self.metadata["compression"] = i.compression
+            #self.writeToLocal(i)
             return self.metadata
         
     def convert_pdf_to_txt(self, f_path):
@@ -187,12 +212,11 @@ class Document():
         assert self.extension in ['csv']
         
         metadata = {}
-        ##fileString = open(self.endpoint, 'r', newline = '')
         self.content = self.file.read()
         f_path = self.writeToLocal()
         fileString =open(f_path, 'r', newline='')
         
-        metadata['filename'] = self.endpoint.split('/')[-1]
+        metadata['filename'] = self.doc_name.split('/')[-1]
         metadata['extension'] = self.get_extension()
         
         file_size = os.stat(f_path).st_size
@@ -223,28 +247,62 @@ class Document():
     def build_heads():
         print('next time')
 
-@app.route('/<var>', methods=["GET"])
-def index(var):
-    return "Hello {}".format(var)
+@app.route('/', methods=["GET"])
+def index():
+    return("Hello hun")
     
-@app.route('/json', methods=["POST"])
+@app.route('/json', methods=["GET", "POST"])
 def upload():
     dico = {}
+    output_dir = os.path.join(os.getcwd(),'output_dir/')
     if request.method == 'POST':
         file = request.files['file']
         #print(request.files["file"].content_type)
         f_name = request.files["file"].filename
+        print("bonjour") 
         doc = Document(file, f_name)
         #aiguille l'extraction des métadonnées dépendant de l'extension du document
-        meta = doc.refersTo() 
-        dico['file_metadata'] = meta
+        file_content = doc.refersTo() 
+        dico['file_metadata'] = file_content
         #print(dico['file_metadata'])
-
-        return jsonify(dico)
-        #return json.dumps(dico, ensure_ascii=False).encode('utf8')    
+        #print(os.path.join(output_dir, f_name.split('.')[0]))
+        print(os.path.join(output_dir, f_name.split('.')[0]) + '.json')
+        try:
+            with open(os.path.join(output_dir, f_name.split('.')[0]) + '.json', 'w+') as outfile:
+                    json.dump(dico, outfile)
+        except:
+            print("Can't write json")
         
-    
+        return jsonify(dico)
+        #return json
+        #return json.dumps(dico, ensure_ascii=False).encode('utf8')
+    else:
+        resp = jsonify({'message' : 'Cette méthode ne peut être exécuté que par un POST'})
+        resp.status_code = 405
+        return resp
+
+@app.route('/get_json/<name>', methods=["GET"])
+def read_json(name):
+    print("Which JSON would u like to see ?")
+    output_dir = os.path.join(os.getcwd(),'output_dir/')
+    json = {}
+    if name.split('.')[-1] == 'json':
+        try:
+            with open(os.path.join(output_dir, name), "r") as f:
+                json['data'] = f.readline()
+            resp = jsonify({'Contenu' : json['data']})
+            resp.status_code = 200
+            return resp
+        except:
+            resp = jsonify({'message' : 'Le fichier json "{}" est introuvable'.format(name)})
+            resp.status_code = 400
+    else:
+        resp = jsonify({'message':'Vous devez passer un fichier json préalablement uploadé'})
+        resp.status_code = 400
+
+    return resp
+
     
     
 if __name__ == '__main__':
-    app.run()    
+    app.run(port=24222, host="0.0.0.0")    
