@@ -14,22 +14,13 @@ from pdfminer3.pdfinterp import PDFResourceManager, PDFPageInterpreter
 from pdfminer3.converter import TextConverter
 from pdfminer3.layout import LAParams
 from pdfminer3.pdfpage import PDFPage
-from pdfminer3.pdftypes import resolve1
+from pdfminer3.pdftypes import resolve1, PDFObjRef
 from io import StringIO
 import csv
 
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 
-
-class Error(Exception):
-    pass;
-
-class ERROR_EXTENSION(Error):
-    #resp = jsonify({'message' : 'Le fichier json "{}" est introuvable'.format(name)})
-    #resp.status_code = 400
-    pass;
-    #return resp
 
 class Document():
     """
@@ -63,8 +54,9 @@ class Document():
                 opt = self.extension
                 with open(path, opt) as fo:
                     fo.write(self.content)
-            except ERROR_EXTENSION:
+            except :
                 print("Erreur extension non supporté pour l'écriture du fichier en local")
+                pass;
         with open(path, opt) as fo:
             fo.write(self.content)
         return path
@@ -98,8 +90,8 @@ class Document():
         elif self.extension in ['csv', 'xlsx']:
             return self.extract_csv()
         else:
-            print("Unknown extension")
-            return self.writeToLocal()
+            err = {"error": 'Unsupported extension: ".{}"'.format(self.extension)}
+            return err
         
     def extract_images(self):
         self.metadata = {}
@@ -114,7 +106,8 @@ class Document():
             #self.metadata["background_color"] = i.background_color 
             self.metadata["compression_quality"] = i.compression_quality
             self.metadata["compression"] = i.compression
-            #self.writeToLocal(i)
+            i.save(filename = os.path.join(os.path.join(os.getcwd(), self.output_path), self.doc_name))
+
             return self.metadata
         
     def convert_pdf_to_txt(self, f_path):
@@ -163,35 +156,50 @@ class Document():
         doc = PDFDocument(parser)
         
         available_fields = list(doc.info[0].keys())
-        #print(available_fields)
-
+        self.metadata['auteur'] = None
+        self.metadata['creation_date'] = None
+        self.metadata['modification_date'] = None
+        self.metadata['creator'] = None
+        self.metadata['producer'] = None
+        
         if 'CreationDate' in available_fields:
-            try:
-                pdf_creation_date = str(convertPdfDatetime(doc.info[0]["CreationDate"]))
+            if isinstance(doc.info[0]["CreationDate"], PDFObjRef):
+                doc.info[0]["CreationDate"] = resolve1(doc.info[0]["CreationDate"])
+            try:        
+                pdf_creation_date = str(self.convertPdfDatetime(doc.info[0]["CreationDate"]))
                 self.metadata['creation_date'] = str(pdf_creation_date)
             except:
                 pass;
         if 'ModDate' in available_fields:
+            if isinstance(doc.info[0]["ModDate"], PDFObjRef):
+                doc.info[0]["ModDate"] = resolve1(doc.info[0]["ModDate"])
+                    
             try:
-                pdf_modif_date =  convertPdfDatetime(doc.info[0]["ModDate"])
+                pdf_modif_date =  str(self.convertPdfDatetime(doc.info[0]["ModDate"]))
                 self.metadata['modification_date'] = str(pdf_modif_date)
             except:
                 pass;
         if 'Author' in available_fields:
-            try:
+            if isinstance(doc.info[0]["Author"], PDFObjRef):
+                doc.info[0]["Author"] = resolve1(doc.info[0]["Author"])
+            try:        
                 pdf_auteur = doc.info[0]["Author"].decode("utf-8")
                 self.metadata['auteur'] = pdf_auteur
             except:
                 pass;
         if 'Creator' in available_fields:
-            try:
-                pdf_creator = doc.info[0]["Creator"].decode("utf-8")
+            if isinstance(doc.info[0]["Creator"], PDFObjRef):
+                doc.info[0]["Creator"] = resolve1(doc.info[0]["Creator"])
+            try:    
+                pdf_creator = doc.info[0]["Creator"].decode("utf-16")
                 self.metadata['creator'] = pdf_creator
             except:
                 pass;
         if 'Producer' in available_fields:
-            try:
-                pdf_producer = doc.info[0]["Producer"].decode("utf-8")
+            if isinstance(doc.info[0]["Producer"], PDFObjRef):
+                doc.info[0]["Producer"] = resolve1(doc.info[0]["Producer"])
+            try:    
+                pdf_producer = doc.info[0]["Producer"].decode("utf-16")
                 self.metadata['producer'] = pdf_producer
             except:
                 pass;
@@ -259,14 +267,16 @@ def upload():
         file = request.files['file']
         #print(request.files["file"].content_type)
         f_name = request.files["file"].filename
-        print("bonjour") 
         doc = Document(file, f_name)
         #aiguille l'extraction des métadonnées dépendant de l'extension du document
         file_content = doc.refersTo() 
-        dico['file_metadata'] = file_content
-        #print(dico['file_metadata'])
-        #print(os.path.join(output_dir, f_name.split('.')[0]))
-        print(os.path.join(output_dir, f_name.split('.')[0]) + '.json')
+        if 'error' not in list(file_content.keys()):
+            dico['file_metadata'] = file_content
+            dico['file_metadata']['mime_type'] = request.files["file"].content_type
+        else:
+            resp = jsonify({'message' : file_content['error']})
+            resp.status_code = 400
+            return resp
         try:
             with open(os.path.join(output_dir, f_name.split('.')[0]) + '.json', 'w+') as outfile:
                     json.dump(dico, outfile)
@@ -274,7 +284,6 @@ def upload():
             print("Can't write json")
         
         return jsonify(dico)
-        #return json
         #return json.dumps(dico, ensure_ascii=False).encode('utf8')
     else:
         resp = jsonify({'message' : 'Cette méthode ne peut être exécuté que par un POST'})
@@ -295,7 +304,7 @@ def read_json(name):
             return resp
         except:
             resp = jsonify({'message' : 'Le fichier json "{}" est introuvable'.format(name)})
-            resp.status_code = 400
+            resp.status_code = 404
     else:
         resp = jsonify({'message':'Vous devez passer un fichier json préalablement uploadé'})
         resp.status_code = 400
