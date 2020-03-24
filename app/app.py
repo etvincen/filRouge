@@ -304,6 +304,7 @@ def upload():
             dico['file_metadata'] = file_content
             dico['file_metadata']['mime_type'] = request.files["file"].content_type
         else:
+            #resp = json.dumps(file_content['error'], ensure_ascii=False) 
             resp = jsonify({'message' : file_content['error']})
             resp.status_code = 400
             return resp
