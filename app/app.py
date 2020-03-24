@@ -60,7 +60,7 @@ class Document():
     output_path = ""
     extension = ''
     file = b''
-    metadata = {}
+    properties = {}
     content = []
     
     def __init__(self, file, doc_name):
@@ -69,7 +69,7 @@ class Document():
         self.content = []
         self.output_path = "output_dir/" 
         self.file = file
-        self.metadata = {}
+        self.properties = {}
         
     def writeToLocal(self):
         path = os.path.join(os.path.join(os.getcwd(), self.output_path), self.doc_name)
@@ -94,16 +94,16 @@ class Document():
         assert self.extension in ['txt']
 
         self.content = " ".join([x.decode("utf-8") for x in self.file.readlines()])         
-        self.metadata['content'] = self.content
+        self.properties['content'] = self.content
         
         f_path = self.writeToLocal()
         #print(os.listdir(os.getcwd()))
         
         with open(f_path, 'rb') as f:
             raw_data = f.read()
-            self.metadata['size'] = f.tell()
-            self.metadata['encoding'] = chardet.detect(raw_data)
-        return self.metadata
+            self.properties['size'] = f.tell()
+            self.properties['encoding'] = chardet.detect(raw_data)
+        return self.properties
     
     def get_extension(self):
         self.extension = self.doc_name.split('/')[-1].split('.')[-1].lower()
@@ -123,21 +123,20 @@ class Document():
             return err
         
     def extract_images(self):
-        self.metadata = {}
+        self.properties = {}
         assert self.extension in ['jpeg', 'jpg', 'png', 'jfif']
         self.file = self.file.read()
         with Image(blob = self.file) as i:
             dim = {"width": i.width, "height": i.height}
-            self.metadata["dimensions"] = dim
-            self.metadata["alpha_channel"] = i.alpha_channel
-            self.metadata["format"] = i.format
-            self.metadata["type_image"] = i.type 
-            #self.metadata["background_color"] = i.background_color 
-            self.metadata["compression_quality"] = i.compression_quality
-            self.metadata["compression"] = i.compression
+            self.properties["dimensions"] = dim
+            self.properties["alpha_channel"] = i.alpha_channel
+            self.properties["format"] = i.format
+            self.properties["type_image"] = i.type 
+            self.properties["compression_quality"] = i.compression_quality
+            self.properties["compression"] = i.compression
             i.save(filename = os.path.join(os.path.join(os.getcwd(), self.output_path), self.doc_name))
 
-            return self.metadata
+            return self.properties
         
     def convert_pdf_to_txt(self, f_path):
         rsrcmgr = PDFResourceManager()
@@ -185,18 +184,18 @@ class Document():
         doc = PDFDocument(parser)
         
         available_fields = list(doc.info[0].keys())
-        self.metadata['auteur'] = None
-        self.metadata['creation_date'] = None
-        self.metadata['modification_date'] = None
-        self.metadata['creator'] = None
-        self.metadata['producer'] = None
+        self.properties['auteur'] = None
+        self.properties['creation_date'] = None
+        self.properties['modification_date'] = None
+        self.properties['creator'] = None
+        self.properties['producer'] = None
         
         if 'CreationDate' in available_fields:
             if isinstance(doc.info[0]["CreationDate"], PDFObjRef):
                 doc.info[0]["CreationDate"] = resolve1(doc.info[0]["CreationDate"])
             try:        
                 pdf_creation_date = str(self.convertPdfDatetime(doc.info[0]["CreationDate"]))
-                self.metadata['creation_date'] = str(pdf_creation_date)
+                self.properties['creation_date'] = str(pdf_creation_date)
             except:
                 pass;
         if 'ModDate' in available_fields:
@@ -205,7 +204,7 @@ class Document():
                     
             try:
                 pdf_modif_date =  str(self.convertPdfDatetime(doc.info[0]["ModDate"]))
-                self.metadata['modification_date'] = str(pdf_modif_date)
+                self.properties['modification_date'] = str(pdf_modif_date)
             except:
                 pass;
         if 'Author' in available_fields:
@@ -213,7 +212,7 @@ class Document():
                 doc.info[0]["Author"] = resolve1(doc.info[0]["Author"])
             try:        
                 pdf_auteur = doc.info[0]["Author"].decode("utf-8")
-                self.metadata['auteur'] = pdf_auteur
+                self.properties['auteur'] = pdf_auteur
             except:
                 pass;
         if 'Creator' in available_fields:
@@ -221,7 +220,7 @@ class Document():
                 doc.info[0]["Creator"] = resolve1(doc.info[0]["Creator"])
             try:    
                 pdf_creator = doc.info[0]["Creator"].decode("utf-16")
-                self.metadata['creator'] = pdf_creator
+                self.properties['creator'] = pdf_creator
             except:
                 pass;
         if 'Producer' in available_fields:
@@ -229,7 +228,7 @@ class Document():
                 doc.info[0]["Producer"] = resolve1(doc.info[0]["Producer"])
             try:    
                 pdf_producer = doc.info[0]["Producer"].decode("utf-16")
-                self.metadata['producer'] = pdf_producer
+                self.properties['producer'] = pdf_producer
             except:
                 pass;
             
@@ -239,25 +238,24 @@ class Document():
         
         #Only the first 100 characters for clarity
         self.content = self.convert_pdf_to_txt(f_path)
-        self.metadata['content'] = self.content[:100] + '(...)'
-        self.metadata['page_count'] = pages_count
+        self.properties['content'] = self.content[:100] + '(...)'
+        self.properties['page_count'] = pages_count
 
-        return self.metadata
+        return self.properties
 
     
     def extract_csv(self):
         assert self.extension in ['csv']
         
-        metadata = {}
         self.content = self.file.read()
         f_path = self.writeToLocal()
         fileString =open(f_path, 'r', newline='')
         
-        metadata['filename'] = self.doc_name.split('/')[-1]
-        metadata['extension'] = self.get_extension()
+        self.properties['filename'] = self.doc_name.split('/')[-1]
+        self.properties['extension'] = self.get_extension()
         
         file_size = os.stat(f_path).st_size
-        metadata["size"] = file_size
+        self.properties["size"] = file_size
 
         reader = csv.DictReader(fileString)
         data_columns = []
@@ -275,10 +273,10 @@ class Document():
             break;
             
         row_count = sum(1 for row in reader)
-        metadata["nb_rows"] = row_count
-        metadata["file_delimiter"] = file_delimiter
-        metadata["header_columns"] = data_columns
-        return metadata
+        self.properties["nb_rows"] = row_count
+        self.properties["file_delimiter"] = file_delimiter
+        self.properties["header_columns"] = data_columns
+        return self.properties
                 
     
     def build_heads():
@@ -292,17 +290,22 @@ def index():
 @app.route('/json', methods=["POST"])
 def upload():
     dico = {}
+    dico['metadata'] = {}
     output_dir = os.path.join(os.getcwd(),'output_dir/')
     if request.method == 'POST':
         file = request.files['file']
-        #print(request.files["file"].content_type)
         f_name = request.files["file"].filename
         doc = Document(file, f_name)
         #aiguille l'extraction des métadonnées dépendant de l'extension du document
-        file_content = doc.refersTo() 
-        if 'error' not in list(file_content.keys()):
-            dico['file_metadata'] = file_content
-            dico['file_metadata']['mime_type'] = request.files["file"].content_type
+        _data = doc.refersTo() 
+        if 'error' not in list(_data.keys()):
+            content = ""
+            for key, value in _data.items():
+                if key != "content":
+                    dico['metadata'][key] = value
+                else:
+                    dico[key] = value
+            dico['metadata']['mime_type'] = request.files["file"].content_type
         else:
             #resp = json.dumps(file_content['error'], ensure_ascii=False) 
             resp = jsonify({'message' : file_content['error']})
