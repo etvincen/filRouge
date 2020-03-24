@@ -1,0 +1,19 @@
+summary: Traiter un nouveau fichier
+operationId: upload 
+consumes:
+  - multipart/form-data
+produces:
+  - application/json
+parameters:
+  - in: formData
+    name: file
+    description: 
+    type: file
+    required: true
+responses:
+  200:
+    description: Upload OK
+  400:
+    description: Erreur lors de l'upload
+  404:
+    description: Fatal Error

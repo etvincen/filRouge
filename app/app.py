@@ -17,9 +17,38 @@ from pdfminer3.pdfpage import PDFPage
 from pdfminer3.pdftypes import resolve1, PDFObjRef
 from io import StringIO
 import csv
+from flasgger import Swagger, swag_from
+from flasgger import LazyString, LazyJSONEncoder
+
 
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
+app.config["SWAGGER"] = {"title": "Swagger Fil Rouge","version":"0.1.0", "uiversion": 3, "description": "Interface pour les requêtes à l'API"}
+
+swagger_config = {
+    "headers": [
+    ],
+    "specs": [
+        {
+            "endpoint": 'apispec_1',
+            "route": '/apispec_1.json',
+            "rule_filter": lambda rule: True,
+            "model_filter": lambda tag: True,
+        }
+    ],
+    "static_url_path": "/flasgger_static",
+    "swagger_ui": True,
+    "specs_route": "/swaggerUI/"
+}
+
+template = dict(
+    swaggerUiPrefix=LazyString(lambda: request.environ.get("HTTP_X_SCRIPT_NAME", ""))
+)
+
+app.json_encoder = LazyJSONEncoder
+
+swagger = Swagger(app, config=swagger_config)
+
 
 
 class Document():
@@ -257,9 +286,10 @@ class Document():
 
 @app.route('/', methods=["GET"])
 def index():
-    return("Hello hun")
-    
-@app.route('/json', methods=["GET", "POST"])
+    return("Hello SIO")
+
+@swag_from('upload_json.yml')
+@app.route('/json', methods=["POST"])
 def upload():
     dico = {}
     output_dir = os.path.join(os.getcwd(),'output_dir/')
@@ -290,20 +320,20 @@ def upload():
         resp.status_code = 405
         return resp
 
-@app.route('/get_json/<name>', methods=["GET"])
-def read_json(name):
-    print("Which JSON would u like to see ?")
+@swag_from('get_json.yml')
+@app.route('/get_json/<name_ID>', methods=["GET"])
+def read_json(name_ID):
     output_dir = os.path.join(os.getcwd(),'output_dir/')
-    json = {}
-    if name.split('.')[-1] == 'json':
+    json_dict = {}
+    if name_ID.split('.')[-1] == 'json':
         try:
-            with open(os.path.join(output_dir, name), "r") as f:
-                json['data'] = f.readline()
-            resp = jsonify({'Contenu' : json['data']})
+            with open(os.path.join(output_dir, name_ID), "r") as f:
+                json_dict['data'] = json.load(f)
+            resp = jsonify({'Contenu' : json_dict['data']})
             resp.status_code = 200
             return resp
         except:
-            resp = jsonify({'message' : 'Le fichier json "{}" est introuvable'.format(name)})
+            resp = jsonify({'message' : 'Le fichier json "{}" est introuvable'.format(name_ID)})
             resp.status_code = 404
     else:
         resp = jsonify({'message':'Vous devez passer un fichier json préalablement uploadé'})

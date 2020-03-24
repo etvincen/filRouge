@@ -1,0 +1,27 @@
+swagger: "2.0"
+operationId: read_json
+summary: Get a JSON file previously uploaded
+parameters:
+  - in: path
+    name: name_ID
+    required: true
+    description: The JSON filename to return
+    type : string
+    minimum: 1
+    consumes:
+      - application/json
+    produces:
+      - application/json
+responses:
+  200:
+    description: OK
+    schema:
+      type: object
+      properties:
+        name_ID:
+          type: string
+          example: "mon_fichier.json"
+  400:
+    description: Not a JSON file. Please upload the right file extension.
+  404:
+    description: File not found.
