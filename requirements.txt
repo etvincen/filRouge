@@ -10,3 +10,4 @@ flask_swagger_ui==3.25.0
 pdfminer3==2018.12.3.0
 chardet==3.0.4
 wand==0.5.9
+flasgger==0.9.4

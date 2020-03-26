@@ -1,7 +1,8 @@
 from flask import Flask, jsonify, request, render_template
-import os
+import os, sys
 import json
 import pprint
+import codecs
 import wand
 from wand.image import Image
 from wand.color import Color
@@ -15,7 +16,7 @@ from pdfminer3.converter import TextConverter
 from pdfminer3.layout import LAParams
 from pdfminer3.pdfpage import PDFPage
 from pdfminer3.pdftypes import resolve1, PDFObjRef
-from io import StringIO
+from io import StringIO, TextIOWrapper, BytesIO
 import csv
 from flasgger import Swagger, swag_from
 from flasgger import LazyString, LazyJSONEncoder
@@ -54,7 +55,6 @@ swagger = Swagger(app, config=swagger_config)
 class Document():
     """
     curl -F file=@./totti.txt http://0.0.0.0:24222/json
-    curl -X post file=@./rest.txt http://127.0.0.1:5000/json
     """
     doc_name = ''
     output_path = ""
@@ -98,11 +98,11 @@ class Document():
         
         f_path = self.writeToLocal()
         #print(os.listdir(os.getcwd()))
-        
         with open(f_path, 'rb') as f:
             raw_data = f.read()
             self.properties['size'] = f.tell()
             self.properties['encoding'] = chardet.detect(raw_data)
+            self.properties['word_count'] = len(self.content.split(' '))        
         return self.properties
     
     def get_extension(self):
@@ -125,8 +125,8 @@ class Document():
     def extract_images(self):
         self.properties = {}
         assert self.extension in ['jpeg', 'jpg', 'png', 'jfif']
-        self.file = self.file.read()
-        with Image(blob = self.file) as i:
+        #self.file = self.file.read()
+        with Image(blob= self.file, format='ico') as i:
             dim = {"width": i.width, "height": i.height}
             self.properties["dimensions"] = dim
             self.properties["alpha_channel"] = i.alpha_channel
@@ -138,26 +138,24 @@ class Document():
 
             return self.properties
         
-    def convert_pdf_to_txt(self, f_path):
+    def convert_pdf_to_txt(self):
         rsrcmgr = PDFResourceManager()
         retstr = StringIO()
         codec = 'utf-8'
         laparams = LAParams()
         device = TextConverter(rsrcmgr, retstr, laparams=laparams)
         
-        fp = open(f_path, 'rb')
         interpreter = PDFPageInterpreter(rsrcmgr, device)
         password = ""
         maxpages = 0
         caching = True
         pagenos=set()
 
-        for page in PDFPage.get_pages(fp, pagenos, maxpages=maxpages, password=password,caching=caching, check_extractable=True):
+        for page in PDFPage.get_pages(self.file, pagenos, maxpages=maxpages, password=password,caching=caching, check_extractable=True):
             interpreter.process_page(page)
 
         text = retstr.getvalue()
 
-        fp.close()
         device.close()
         retstr.close()
         return text
@@ -177,10 +175,7 @@ class Document():
         assert self.extension in ['pdf']
         
         self.content = self.file.read()
-        f_path = self.writeToLocal()
-        fp =open(f_path, 'rb')
-        
-        parser = PDFParser(fp)
+        parser = PDFParser(self.file)
         doc = PDFDocument(parser)
         
         available_fields = list(doc.info[0].keys())
@@ -236,9 +231,9 @@ class Document():
         pages = resolve1(doc.catalog['Pages'])
         pages_count = pages.get('Count', 0)
         
-        #Only the first 100 characters for clarity
-        self.content = self.convert_pdf_to_txt(f_path)
-        self.properties['content'] = self.content[:100] + '(...)'
+        #Only the first 300 characters for clarity
+        self.content = self.convert_pdf_to_txt()
+        self.properties['content'] = self.content[:300] + '(...)'
         self.properties['page_count'] = pages_count
 
         return self.properties
@@ -248,16 +243,18 @@ class Document():
         assert self.extension in ['csv']
         
         self.content = self.file.read()
-        f_path = self.writeToLocal()
-        fileString =open(f_path, 'r', newline='')
         
+        f_path = self.writeToLocal()
         self.properties['filename'] = self.doc_name.split('/')[-1]
         self.properties['extension'] = self.get_extension()
         
         file_size = os.stat(f_path).st_size
         self.properties["size"] = file_size
-
-        reader = csv.DictReader(fileString)
+        wrapper = TextIOWrapper(codecs.getreader("utf-8")(self.file))
+        wrapper.seek(0,0)
+        
+        reader = csv.DictReader(wrapper)
+        
         data_columns = []
         file_delimiter = ''
         
@@ -268,11 +265,15 @@ class Document():
                     file_delimiter = ';'
                 else:
                     file_delimiter = ','
-                data_columns = [x for x in key.split(file_delimiter)]
+                data_columns = [x for x in list(items.keys())]
+                if file_delimiter == ';':
+                    data_columns = data_columns[0].split(';')
                 break;
             break;
             
         row_count = sum(1 for row in reader)
+
+        self.properties['content'] = self.content.decode('utf-8')[:300]
         self.properties["nb_rows"] = row_count
         self.properties["file_delimiter"] = file_delimiter
         self.properties["header_columns"] = data_columns
@@ -295,6 +296,8 @@ def upload():
     if request.method == 'POST':
         file = request.files['file']
         f_name = request.files["file"].filename
+        #print(file.read())
+        #print(type(file))
         doc = Document(file, f_name)
         #aiguille l'extraction des métadonnées dépendant de l'extension du document
         _data = doc.refersTo() 
@@ -308,7 +311,7 @@ def upload():
             dico['metadata']['mime_type'] = request.files["file"].content_type
         else:
             #resp = json.dumps(file_content['error'], ensure_ascii=False) 
-            resp = jsonify({'message' : file_content['error']})
+            resp = jsonify({'message' : _data['error']})
             resp.status_code = 400
             return resp
         try:
