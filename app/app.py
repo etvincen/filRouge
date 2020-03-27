@@ -50,8 +50,8 @@ def upload():
         file = request.files['file']
         f_name = request.files["file"].filename
         doc = Document(file, f_name)
-        #aiguille l'extraction des métadonnées dépendant de l'extension du document
         _data = doc.refersTo() 
+        
         if 'error' not in list(_data.keys()):
             content = ""
             for key, value in _data.items():
