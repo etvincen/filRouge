@@ -4,7 +4,7 @@
 
 - Démarrer l'instance EC2 t2.medium
 - Se connecter à l'instance en SSH à l'aide de la clef PEM
-- Cloner ce repository dans l'instance EC2 au niveau de /home/ubuntu
+- Une fois dans l'instance EC2 au niveau de /home/ubuntu (ou ~), run `git clone https://github.com/etvincen/filRouge.git`
 - run `cd filRouge/`
 - run `virtualenv venv`
 - run `source venv/bin/activate`
@@ -15,7 +15,7 @@
 
 ## Notes
 
-La fluidité de l'application peut-être impactée par les règles d'Iptables. Pour faire un test sans restrictions, changer la politique en exécutant: `sudo iptables --policy INPUT ACCEPT`
+La fluidité de l'application peut-être impactée par les règles d'Iptables (en particulier lors du lancement du serveur Flask - environ 20 secondes). Pour faire un test sans restrictions, changer la politique en exécutant: `sudo iptables --policy INPUT ACCEPT`
 
 #### Endpoint Swagger:
 - <ec2_DNS>:24222/swaggerUI
