@@ -20,8 +20,8 @@ La fluidité de l'application peut-être impactée par les règles d'Iptables. P
 #### Endpoint Swagger:
 - <ec2_DNS>:24222/swaggerUI
 #### Endpoints 
-GET - curl ec2-XX-XX-XXX-XX.eu-west-1.compute.amazonaws.com:24222/get_json/<filename.json>
-POST - curl -F file=@./<filename.ext> ec2-XX-XX-XXX-XX.eu-west-1.compute.amazonaws.com:24222/json
+- GET - curl ec2-XX-XX-XXX-XX.eu-west-1.compute.amazonaws.com:24222/get_json/<filename.json>
+- POST - curl -F file=@./<filename.ext> ec2-XX-XX-XXX-XX.eu-west-1.compute.amazonaws.com:24222/json
 #### PORT : 24222
 
 
