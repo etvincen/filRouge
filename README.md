@@ -18,7 +18,7 @@
 La fluidité de l'application peut-être impactée par les règles d'Iptables (en particulier lors du lancement du serveur Flask - environ 20 secondes). Pour faire un test sans restrictions, changer la politique en exécutant: `sudo iptables --policy INPUT ACCEPT`
 
 #### Endpoint Swagger:
-- <ec2_DNS>:24222/swaggerUI
+- ec2-XX-XX-XXX-XX.eu-west-1.compute.amazonaws.com:24222/swaggerUI
 #### Endpoints 
 - GET - curl ec2-XX-XX-XXX-XX.eu-west-1.compute.amazonaws.com:24222/get_json/<filename.json>
 - POST - curl -F file=@./<filename.ext> ec2-XX-XX-XXX-XX.eu-west-1.compute.amazonaws.com:24222/json
